@@ -23,8 +23,9 @@ services:
     dockerfilePath: ./Dockerfile
     plan: free
     healthCheckPath: /api/v1/health
-    # Run DB migrations + apply RLS policies before each deploy goes live.
-    preDeployCommand: 'npx prisma migrate deploy && psql "$DATABASE_URL" -f prisma/rls/enable-rls.sql'
+    # Before each deploy: migrate, apply RLS policies, seed baseline data
+    # (idempotent upserts — safe to re-run; guarantees a working login).
+    preDeployCommand: 'npx prisma migrate deploy && psql "$DATABASE_URL" -f prisma/rls/enable-rls.sql && npm run db:seed'
     envVars:
       - key: NODE_ENV
         value: production
