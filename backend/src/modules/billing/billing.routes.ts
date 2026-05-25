@@ -35,6 +35,8 @@ router.use(authenticate, withTenant);
 const canManageFinance = requireRole('SOCIETY_ADMIN', 'COMMITTEE_MEMBER');
 
 // ── Invoices ────────────────────────────────────────────────────────────
+// Resident self-view of their own dues — any authenticated user. Before /:id.
+router.get('/invoices/mine', asyncHandler(invoiceController.listMine));
 router.get('/invoices', canManageFinance, validate(listInvoicesSchema), asyncHandler(invoiceController.list));
 router.get('/invoices/:id', canManageFinance, validate(invoiceIdSchema), asyncHandler(invoiceController.getById));
 router.post('/invoices', canManageFinance, validate(createInvoiceSchema), asyncHandler(invoiceController.create));

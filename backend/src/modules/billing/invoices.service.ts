@@ -56,6 +56,21 @@ class InvoiceService {
     return { items, meta: buildMeta(page, total) };
   }
 
+  /** Invoices for the calling resident's own unit(s) — their dues. */
+  async listMine(db: TenantClient, userId: string) {
+    const residencies = await db.residency.findMany({
+      where: { userId, movedOutAt: null },
+      select: { unitId: true },
+    });
+    const unitIds = residencies.map((r) => r.unitId);
+    if (unitIds.length === 0) return [];
+    return db.maintenanceInvoice.findMany({
+      where: { unitId: { in: unitIds }, status: { not: 'DRAFT' } },
+      orderBy: { issueDate: 'desc' },
+      include: { unit: { select: { id: true, unitNumber: true } } },
+    });
+  }
+
   async getById(db: TenantClient, id: string) {
     const invoice = await db.maintenanceInvoice.findFirst({ where: { id }, include: invoiceInclude });
     if (!invoice) throw new NotFoundError('Invoice not found');

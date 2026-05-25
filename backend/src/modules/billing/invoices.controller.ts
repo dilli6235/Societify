@@ -13,6 +13,10 @@ class InvoiceController {
     res.json(ok(invoice));
   };
 
+  listMine = async (req: Request, res: Response): Promise<void> => {
+    res.json(ok(await invoiceService.listMine(req.tenant!.db, req.auth!.userId)));
+  };
+
   create = async (req: Request, res: Response): Promise<void> => {
     const invoice = await invoiceService.create(req.tenant!.societyId, req.body);
     res.status(201).json(ok(invoice));

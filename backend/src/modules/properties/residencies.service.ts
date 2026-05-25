@@ -27,6 +27,19 @@ interface UpdateInput {
 }
 
 class ResidencyService {
+  /** The calling user's own active residencies (their unit[s]). */
+  async listMine(db: TenantClient, userId: string) {
+    return db.residency.findMany({
+      where: { userId, movedOutAt: null },
+      orderBy: { movedInAt: 'desc' },
+      include: {
+        unit: {
+          select: { id: true, unitNumber: true, occupancyStatus: true, block: { select: { name: true } } },
+        },
+      },
+    });
+  }
+
   async list(db: TenantClient, params: ListParams) {
     const page = resolvePagination(params);
     const where = {

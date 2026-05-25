@@ -13,6 +13,10 @@ class ResidencyController {
     res.json(ok(residency));
   };
 
+  mine = async (req: Request, res: Response): Promise<void> => {
+    res.json(ok(await residencyService.listMine(req.tenant!.db, req.auth!.userId)));
+  };
+
   create = async (req: Request, res: Response): Promise<void> => {
     const residency = await residencyService.create(req.tenant!.db, req.tenant!.societyId, req.body);
     res.status(201).json(ok(residency));

@@ -52,8 +52,10 @@ router.patch('/units/:id', canManage, validate(updateUnitSchema), asyncHandler(u
 router.delete('/units/:id', canManage, validate(unitIdSchema), asyncHandler(unitController.remove));
 
 // ── Residencies ─────────────────────────────────────────────────────────
-router.get('/residencies', validate(listResidenciesSchema), asyncHandler(residencyController.list));
-router.get('/residencies/:id', validate(residencyIdSchema), asyncHandler(residencyController.getById));
+// The calling user's own units — any authenticated resident. Must precede /:id.
+router.get('/residencies/mine', asyncHandler(residencyController.mine));
+router.get('/residencies', canManage, validate(listResidenciesSchema), asyncHandler(residencyController.list));
+router.get('/residencies/:id', canManage, validate(residencyIdSchema), asyncHandler(residencyController.getById));
 router.post('/residencies', canManage, validate(createResidencySchema), asyncHandler(residencyController.create));
 router.patch('/residencies/:id', canManage, validate(updateResidencySchema), asyncHandler(residencyController.update));
 router.post('/residencies/:id/end', canManage, validate(residencyIdSchema), asyncHandler(residencyController.end));
