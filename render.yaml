@@ -1,0 +1,88 @@
+# Render Blueprint — provisions the whole stack from one file.
+# In Render: New → Blueprint → connect this repo. Render reads this file and
+# creates the database, Redis, API (which also serves the dashboard), and worker.
+#
+# Docs: https://render.com/docs/blueprint-spec
+
+databases:
+  - name: societify-db
+    databaseName: society_saas
+    plan: free # free Postgres (note: free DBs expire after ~30 days)
+
+services:
+  # Redis (Render "Key Value") for BullMQ jobs + notifications.
+  - type: keyvalue
+    name: societify-redis
+    plan: free
+    ipAllowList: [] # internal-only
+
+  # API + web dashboard (served same-origin from /public).
+  - type: web
+    name: societify-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /api/v1/health
+    # Run DB migrations + apply RLS policies before each deploy goes live.
+    preDeployCommand: 'npx prisma migrate deploy && psql "$DATABASE_URL" -f prisma/rls/enable-rls.sql'
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 4000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: societify-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: societify-redis
+          property: connectionString
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: COOKIE_SECRET
+        generateValue: true
+      # WEB_APP_URL auto-resolves from Render's RENDER_EXTERNAL_URL at runtime.
+      # Optional: set SMTP_URL / EMAIL_FROM / RAZORPAY_* / FCM_SERVER_KEY in the
+      # dashboard to enable real email, payments, and push.
+
+  # Background worker (scheduled jobs + notification delivery).
+  # NOTE: Render background workers are a PAID instance type. Omit this service
+  # for a fully-free deploy — the app works without it (only scheduled jobs and
+  # async notification delivery pause).
+  - type: worker
+    name: societify-worker
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerCommand: npx tsx src/jobs/worker.ts
+    plan: starter
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: societify-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: societify-redis
+          property: connectionString
+      - key: JWT_ACCESS_SECRET
+        fromService:
+          type: web
+          name: societify-api
+          envVarKey: JWT_ACCESS_SECRET
+      - key: JWT_REFRESH_SECRET
+        fromService:
+          type: web
+          name: societify-api
+          envVarKey: JWT_REFRESH_SECRET
+      - key: COOKIE_SECRET
+        fromService:
+          type: web
+          name: societify-api
+          envVarKey: COOKIE_SECRET

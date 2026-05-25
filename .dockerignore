@@ -1,0 +1,11 @@
+**/node_modules
+**/dist
+**/.expo
+mobile
+*.apk
+*.pdf
+**/.env
+**/.env.local
+**/*.log
+.git
+.DS_Store

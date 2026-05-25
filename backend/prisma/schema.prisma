@@ -1,0 +1,947 @@
+// ============================================================
+//  Society Management SaaS — Prisma Schema
+//  PostgreSQL · Multi-tenant (shared DB, row-level by societyId)
+// ============================================================
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgcrypto]
+}
+
+// ----------------------------------------------------------------
+//  ENUMS
+// ----------------------------------------------------------------
+
+enum SystemRole {
+  SUPER_ADMIN
+  SOCIETY_ADMIN
+  COMMITTEE_MEMBER
+  RESIDENT
+  SECURITY_GUARD
+  FACILITY_ADMIN
+  VENDOR
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  SUSPENDED
+  CANCELLED
+}
+
+enum UserStatus {
+  PENDING  // invited, not yet activated (cannot log in)
+  ACTIVE
+  DISABLED
+}
+
+enum UnitType {
+  APARTMENT
+  VILLA
+  SHOP
+  OFFICE
+  PARKING
+}
+
+enum OccupancyStatus {
+  OWNER_OCCUPIED
+  RENTED
+  VACANT
+}
+
+enum ResidencyRole {
+  OWNER
+  TENANT
+  FAMILY_MEMBER
+}
+
+enum GatePassType {
+  VISITOR
+  DELIVERY
+  CAB
+  DAILY_HELP
+  VENDOR
+  GUEST
+}
+
+enum GatePassStatus {
+  PENDING_APPROVAL
+  APPROVED
+  DENIED
+  EXPIRED
+  CHECKED_IN
+  CHECKED_OUT
+}
+
+enum CheckDirection {
+  IN
+  OUT
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  RAZORPAY
+  STRIPE
+  UPI
+  BANK_TRANSFER
+  CASH
+  CHEQUE
+}
+
+enum ExpenseCategory {
+  HOUSEKEEPING
+  SECURITY
+  MAINTENANCE
+  UTILITIES
+  REPAIRS
+  SALARIES
+  EVENTS
+  OTHER
+}
+
+enum BookingStatus {
+  REQUESTED
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+enum ComplaintStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+  REOPENED
+}
+
+enum ComplaintPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum NoticePriority {
+  INFO
+  IMPORTANT
+  EMERGENCY
+}
+
+enum VehicleType {
+  CAR
+  BIKE
+  SCOOTER
+  BICYCLE
+  OTHER
+}
+
+enum StaffRole {
+  MAID
+  COOK
+  DRIVER
+  GARDENER
+  SECURITY
+  ELECTRICIAN
+  PLUMBER
+  OTHER
+}
+
+enum DocumentVisibility {
+  ALL_RESIDENTS
+  COMMITTEE
+  ADMIN_ONLY
+}
+
+enum SosType {
+  MEDICAL
+  FIRE
+  SECURITY
+  OTHER
+}
+
+enum SosStatus {
+  ACTIVE
+  ACKNOWLEDGED
+  RESOLVED
+}
+
+// ----------------------------------------------------------------
+//  PLATFORM-LEVEL (non-tenant) MODELS
+// ----------------------------------------------------------------
+
+model Plan {
+  id           String    @id @default(uuid())
+  name         String    @unique
+  priceMonthly Decimal   @db.Decimal(10, 2)
+  maxUnits     Int
+  features     Json
+  isActive     Boolean   @default(true)
+  societies    Society[]
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@map("plans")
+}
+
+// ----------------------------------------------------------------
+//  TENANT ROOT
+// ----------------------------------------------------------------
+
+model Society {
+  id                 String             @id @default(uuid())
+  name               String
+  slug               String             @unique
+  registrationNumber String?
+  addressLine1       String
+  addressLine2       String?
+  city               String
+  state              String
+  country            String             @default("India")
+  postalCode         String
+  timezone           String             @default("Asia/Kolkata")
+  currency           String             @default("INR")
+  logoUrl            String?
+
+  planId             String?
+  plan               Plan?              @relation(fields: [planId], references: [id])
+  subscriptionStatus SubscriptionStatus @default(TRIAL)
+  trialEndsAt        DateTime?
+
+  // Monotonic per-society counters for human-friendly document numbers.
+  // Incremented atomically (UPDATE ... RETURNING) so numbers never collide.
+  invoiceSeq         Int                @default(0)
+  complaintSeq       Int                @default(0)
+
+  users            User[]
+  invitations      UserInvitation[]
+  deviceTokens     DeviceToken[]
+  notifications    Notification[]
+  blocks           Block[]
+  units            Unit[]
+  residencies      Residency[]
+  gatePasses       GatePass[]
+  checkInLogs      CheckInLog[]
+  invoices         MaintenanceInvoice[]
+  invoiceLineItems InvoiceLineItem[]
+  payments         Payment[]
+  expenses         Expense[]
+  amenities        Amenity[]
+  bookings         AmenityBooking[]
+  complaints       Complaint[]
+  notices          Notice[]
+  polls            Poll[]
+  vehicles         Vehicle[]
+  staffMembers     StaffMember[]
+  staffAttendance  StaffAttendance[]
+  documents        Document[]
+  sosAlerts        SosAlert[]
+  auditLogs        AuditLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([slug])
+  @@map("societies")
+}
+
+// ----------------------------------------------------------------
+//  USERS & ROLES
+// ----------------------------------------------------------------
+
+model User {
+  id            String    @id @default(uuid())
+  societyId     String?
+  society       Society?  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+
+  email         String
+  phone         String?
+  passwordHash  String
+  fullName      String
+  avatarUrl     String?
+  status        UserStatus @default(ACTIVE)
+  emailVerified Boolean   @default(false)
+  lastLoginAt   DateTime?
+
+  roles            UserRole[]
+  residencies      Residency[]
+  refreshTokens    RefreshToken[]
+  invitations      UserInvitation[] @relation("InvitationTarget")
+  sentInvitations  UserInvitation[] @relation("InvitationInviter")
+  deviceTokens     DeviceToken[]
+  notifications    Notification[]
+
+  raisedComplaints   Complaint[] @relation("ComplaintRaiser")
+  assignedComplaints Complaint[] @relation("ComplaintAssignee")
+  createdGatePasses  GatePass[]
+  bookings           AmenityBooking[]
+  postedNotices      Notice[]
+  createdPolls       Poll[]
+  pollVotes          PollVote[]
+  auditLogs          AuditLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([societyId, email])
+  @@index([societyId])
+  @@index([phone])
+  @@map("users")
+}
+
+model UserRole {
+  id        String     @id @default(uuid())
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      SystemRole
+  createdAt DateTime   @default(now())
+
+  @@unique([userId, role])
+  @@index([userId])
+  @@map("user_roles")
+}
+
+// Pending invitations. The invitee's User row is created up-front with status
+// PENDING; accepting the (hashed) token sets their password and activates them.
+model UserInvitation {
+  id          String    @id @default(uuid())
+  societyId   String
+  society     Society   @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation("InvitationTarget", fields: [userId], references: [id], onDelete: Cascade)
+  email       String
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  invitedById String
+  invitedBy   User      @relation("InvitationInviter", fields: [invitedById], references: [id])
+  createdAt   DateTime  @default(now())
+
+  @@index([societyId])
+  @@index([userId])
+  @@map("user_invitations")
+}
+
+// Push notification registration tokens (one per device).
+model DeviceToken {
+  id        String   @id @default(uuid())
+  societyId String
+  society   Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  platform  String   // ios | android | web
+  createdAt DateTime @default(now())
+
+  @@index([societyId])
+  @@index([userId])
+  @@map("device_tokens")
+}
+
+// In-app notification feed + record that a notification was dispatched.
+model Notification {
+  id        String    @id @default(uuid())
+  societyId String
+  society   Society   @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String    // event key, e.g. "INVOICE_ISSUED"
+  title     String
+  body      String
+  data      Json?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([societyId])
+  @@index([userId, readAt])
+  @@map("notifications")
+}
+
+// Hashed refresh tokens for rotation + revocation (one row per active session).
+model RefreshToken {
+  id         String    @id @default(uuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  replacedBy String?
+  userAgent  String?
+  ipAddress  String?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// ----------------------------------------------------------------
+//  PROPERTY MANAGEMENT
+// ----------------------------------------------------------------
+
+model Block {
+  id          String   @id @default(uuid())
+  societyId   String
+  society     Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  name        String
+  totalFloors Int?
+  units       Unit[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([societyId, name])
+  @@index([societyId])
+  @@map("blocks")
+}
+
+model Unit {
+  id              String          @id @default(uuid())
+  societyId       String
+  society         Society         @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  blockId         String
+  block           Block           @relation(fields: [blockId], references: [id])
+
+  unitNumber      String
+  floor           Int?
+  type            UnitType        @default(APARTMENT)
+  carpetAreaSqft  Decimal?        @db.Decimal(10, 2)
+  occupancyStatus OccupancyStatus @default(VACANT)
+
+  residencies Residency[]
+  invoices    MaintenanceInvoice[]
+  gatePasses  GatePass[]
+  vehicles    Vehicle[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([societyId, unitNumber])
+  @@index([societyId])
+  @@index([blockId])
+  @@map("units")
+}
+
+model Residency {
+  id         String        @id @default(uuid())
+  societyId  String
+  society    Society       @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  unitId     String
+  unit       Unit          @relation(fields: [unitId], references: [id])
+  userId     String
+  user       User          @relation(fields: [userId], references: [id])
+
+  role       ResidencyRole
+  isPrimary  Boolean       @default(false)
+  movedInAt  DateTime      @default(now())
+  movedOutAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([societyId])
+  @@index([unitId])
+  @@index([userId])
+  @@map("residencies")
+}
+
+// ----------------------------------------------------------------
+//  SECURITY & GATE MANAGEMENT
+// ----------------------------------------------------------------
+
+model GatePass {
+  id            String         @id @default(uuid())
+  societyId     String
+  society       Society        @relation(fields: [societyId], references: [id], onDelete: Cascade)
+
+  type          GatePassType
+  status        GatePassStatus @default(PENDING_APPROVAL)
+
+  visitorName   String
+  visitorPhone  String?
+  vehicleNumber String?
+  purpose       String?
+  photoUrl      String?
+
+  otpCode       String?
+  qrToken       String?        @unique
+  validFrom     DateTime       @default(now())
+  validUntil    DateTime?
+  expectedCount Int            @default(1)
+
+  unitId      String?
+  unit        Unit?   @relation(fields: [unitId], references: [id])
+  createdById String
+  createdBy   User    @relation(fields: [createdById], references: [id])
+
+  checkInLogs CheckInLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([societyId])
+  @@index([societyId, status])
+  @@index([qrToken])
+  @@map("gate_passes")
+}
+
+model CheckInLog {
+  id           String         @id @default(uuid())
+  societyId    String
+  society      Society        @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  gatePassId   String
+  gatePass     GatePass       @relation(fields: [gatePassId], references: [id])
+
+  direction    CheckDirection
+  timestamp    DateTime       @default(now())
+  gateName     String?
+  recordedById String
+  notes        String?
+
+  @@index([societyId])
+  @@index([gatePassId])
+  @@index([societyId, timestamp])
+  @@map("checkin_logs")
+}
+
+// ----------------------------------------------------------------
+//  FINANCE & BILLING
+// ----------------------------------------------------------------
+
+model MaintenanceInvoice {
+  id            String        @id @default(uuid())
+  societyId     String
+  society       Society       @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  unitId        String
+  unit          Unit          @relation(fields: [unitId], references: [id])
+
+  invoiceNumber String
+  status        InvoiceStatus @default(DRAFT)
+
+  billingPeriodStart DateTime
+  billingPeriodEnd   DateTime
+  issueDate          DateTime @default(now())
+  dueDate            DateTime
+
+  subtotal    Decimal @db.Decimal(12, 2)
+  taxAmount   Decimal @db.Decimal(12, 2) @default(0)
+  lateFee     Decimal @db.Decimal(12, 2) @default(0)
+  totalAmount Decimal @db.Decimal(12, 2)
+  amountPaid  Decimal @db.Decimal(12, 2) @default(0)
+
+  lineItems InvoiceLineItem[]
+  payments  Payment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([societyId, invoiceNumber])
+  @@index([societyId])
+  @@index([societyId, status])
+  @@index([unitId])
+  @@map("maintenance_invoices")
+}
+
+model InvoiceLineItem {
+  id          String             @id @default(uuid())
+  societyId   String
+  society     Society            @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  invoiceId   String
+  invoice     MaintenanceInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  description String
+  quantity    Decimal @db.Decimal(10, 2) @default(1)
+  unitPrice   Decimal @db.Decimal(12, 2)
+  amount      Decimal @db.Decimal(12, 2)
+
+  @@index([invoiceId])
+  @@map("invoice_line_items")
+}
+
+model Payment {
+  id        String             @id @default(uuid())
+  societyId String
+  society   Society            @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  invoiceId String?
+  invoice   MaintenanceInvoice? @relation(fields: [invoiceId], references: [id])
+
+  amount Decimal       @db.Decimal(12, 2)
+  method PaymentMethod
+  status PaymentStatus @default(PENDING)
+
+  gatewayProvider  String?
+  gatewayOrderId   String?
+  gatewayPaymentId String? @unique
+  gatewaySignature String?
+  receiptUrl       String?
+
+  paidAt        DateTime?
+  failureReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([societyId])
+  @@index([invoiceId])
+  @@index([gatewayOrderId])
+  @@map("payments")
+}
+
+model Expense {
+  id           String          @id @default(uuid())
+  societyId    String
+  society      Society         @relation(fields: [societyId], references: [id], onDelete: Cascade)
+
+  category     ExpenseCategory
+  title        String
+  description  String?
+  amount       Decimal         @db.Decimal(12, 2)
+  vendorName   String?
+  expenseDate  DateTime
+  receiptUrl   String?
+  recordedById String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([societyId])
+  @@index([societyId, category])
+  @@index([societyId, expenseDate])
+  @@map("expenses")
+}
+
+// ----------------------------------------------------------------
+//  OPERATIONS & AMENITY BOOKING
+// ----------------------------------------------------------------
+
+model Amenity {
+  id              String   @id @default(uuid())
+  societyId       String
+  society         Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+
+  name            String
+  description     String?
+  capacity        Int?
+  bookingFee      Decimal  @db.Decimal(10, 2) @default(0)
+  openTime        String?
+  closeTime       String?
+  slotDurationMin Int      @default(60)
+  isActive        Boolean  @default(true)
+
+  bookings AmenityBooking[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([societyId])
+  @@map("amenities")
+}
+
+model AmenityBooking {
+  id         String        @id @default(uuid())
+  societyId  String
+  society    Society       @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  amenityId  String
+  amenity    Amenity       @relation(fields: [amenityId], references: [id])
+  bookedById String
+  bookedBy   User          @relation(fields: [bookedById], references: [id])
+
+  startTime DateTime
+  endTime   DateTime
+  status    BookingStatus @default(REQUESTED)
+  fee       Decimal       @db.Decimal(10, 2) @default(0)
+  notes     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([societyId])
+  @@index([amenityId, startTime])
+  @@map("amenity_bookings")
+}
+
+// ----------------------------------------------------------------
+//  ISSUE REPORTING & COMMUNITY HUB
+// ----------------------------------------------------------------
+
+model Complaint {
+  id           String            @id @default(uuid())
+  societyId    String
+  society      Society           @relation(fields: [societyId], references: [id], onDelete: Cascade)
+
+  ticketNumber String
+  title        String
+  description  String
+  category     String
+  priority     ComplaintPriority @default(MEDIUM)
+  status       ComplaintStatus   @default(OPEN)
+  attachments  String[]
+
+  raisedById   String
+  raisedBy     User    @relation("ComplaintRaiser", fields: [raisedById], references: [id])
+  assignedToId String?
+  assignedTo   User?   @relation("ComplaintAssignee", fields: [assignedToId], references: [id])
+
+  comments   ComplaintComment[]
+  resolvedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([societyId, ticketNumber])
+  @@index([societyId])
+  @@index([societyId, status])
+  @@map("complaints")
+}
+
+model ComplaintComment {
+  id          String    @id @default(uuid())
+  societyId   String
+  complaintId String
+  complaint   Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  authorId    String
+  body        String
+  isInternal  Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+
+  @@index([complaintId])
+  @@map("complaint_comments")
+}
+
+model Notice {
+  id          String         @id @default(uuid())
+  societyId   String
+  society     Society        @relation(fields: [societyId], references: [id], onDelete: Cascade)
+
+  title       String
+  body        String
+  priority    NoticePriority @default(INFO)
+  attachments String[]
+  publishedAt DateTime       @default(now())
+  expiresAt   DateTime?
+  isPinned    Boolean        @default(false)
+
+  postedById String
+  postedBy   User   @relation(fields: [postedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([societyId])
+  @@index([societyId, publishedAt])
+  @@map("notices")
+}
+
+model Poll {
+  id          String   @id @default(uuid())
+  societyId   String
+  society     Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+
+  question    String
+  description String?
+  isMultiple  Boolean  @default(false)
+  closesAt    DateTime?
+  isClosed    Boolean  @default(false)
+
+  createdById String
+  createdBy   User         @relation(fields: [createdById], references: [id])
+  options     PollOption[]
+  votes       PollVote[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([societyId])
+  @@map("polls")
+}
+
+model PollOption {
+  id        String     @id @default(uuid())
+  societyId String
+  pollId    String
+  poll      Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  text      String
+  votes     PollVote[]
+
+  @@index([pollId])
+  @@map("poll_options")
+}
+
+model PollVote {
+  id           String     @id @default(uuid())
+  societyId    String
+  pollId       String
+  poll         Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  pollOptionId String
+  pollOption   PollOption @relation(fields: [pollOptionId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User       @relation(fields: [userId], references: [id])
+  createdAt    DateTime   @default(now())
+
+  @@unique([pollId, userId, pollOptionId])
+  @@index([pollId])
+  @@map("poll_votes")
+}
+
+// ----------------------------------------------------------------
+//  VEHICLES & PARKING
+// ----------------------------------------------------------------
+
+model Vehicle {
+  id                 String      @id @default(uuid())
+  societyId          String
+  society            Society     @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  unitId             String
+  unit               Unit        @relation(fields: [unitId], references: [id])
+
+  type               VehicleType @default(CAR)
+  registrationNumber String
+  make               String?
+  model              String?
+  color              String?
+  parkingSlot        String?
+  ownerName          String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([societyId, registrationNumber])
+  @@index([societyId])
+  @@index([unitId])
+  @@map("vehicles")
+}
+
+// ----------------------------------------------------------------
+//  STAFF / DAILY HELP & ATTENDANCE
+// ----------------------------------------------------------------
+
+model StaffMember {
+  id         String    @id @default(uuid())
+  societyId  String
+  society    Society   @relation(fields: [societyId], references: [id], onDelete: Cascade)
+
+  fullName   String
+  phone      String?
+  role       StaffRole @default(OTHER)
+  photoUrl   String?
+  idProofUrl String?
+  code       String    @unique // scannable code for gate attendance
+  isActive   Boolean   @default(true)
+
+  attendance StaffAttendance[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([societyId])
+  @@map("staff_members")
+}
+
+model StaffAttendance {
+  id           String         @id @default(uuid())
+  societyId    String
+  society      Society        @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  staffId      String
+  staff        StaffMember    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  direction    CheckDirection
+  timestamp    DateTime       @default(now())
+  gateName     String?
+  recordedById String
+
+  @@index([societyId])
+  @@index([staffId])
+  @@index([societyId, timestamp])
+  @@map("staff_attendance")
+}
+
+// ----------------------------------------------------------------
+//  DOCUMENT VAULT
+// ----------------------------------------------------------------
+
+model Document {
+  id           String             @id @default(uuid())
+  societyId    String
+  society      Society            @relation(fields: [societyId], references: [id], onDelete: Cascade)
+
+  title        String
+  category     String
+  description  String?
+  fileUrl      String
+  visibility   DocumentVisibility @default(ALL_RESIDENTS)
+  uploadedById String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([societyId])
+  @@map("documents")
+}
+
+// ----------------------------------------------------------------
+//  SOS / EMERGENCY ALERTS
+// ----------------------------------------------------------------
+
+model SosAlert {
+  id               String    @id @default(uuid())
+  societyId        String
+  society          Society   @relation(fields: [societyId], references: [id], onDelete: Cascade)
+
+  type             SosType   @default(OTHER)
+  message          String?
+  location         String?
+  status           SosStatus @default(ACTIVE)
+  raisedById       String
+  acknowledgedById String?
+  resolvedAt       DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([societyId])
+  @@index([societyId, status])
+  @@map("sos_alerts")
+}
+
+// ----------------------------------------------------------------
+//  AUDIT & COMPLIANCE
+// ----------------------------------------------------------------
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  societyId  String?
+  society    Society? @relation(fields: [societyId], references: [id])
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id])
+
+  action     String
+  entityType String
+  entityId   String
+  metadata   Json?
+  ipAddress  String?
+
+  createdAt DateTime @default(now())
+
+  @@index([societyId])
+  @@index([societyId, entityType, entityId])
+  @@map("audit_logs")
+}

@@ -1,0 +1,16 @@
+# Dependencies & build output
+**/node_modules/
+**/dist/
+**/.expo/
+
+# Secrets & local env
+**/.env
+**/.env.local
+
+# Logs & OS
+**/*.log
+.DS_Store
+
+# Large local artifacts (not part of the codebase)
+*.apk
+*.pdf

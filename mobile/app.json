@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "Societify",
+    "slug": "societify-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "societify",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#1f43f5"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.societify.mobile"
+    },
+    "android": {
+      "package": "com.societify.mobile",
+      "adaptiveIcon": {
+        "backgroundColor": "#1f43f5"
+      }
+    }
+  }
+}
