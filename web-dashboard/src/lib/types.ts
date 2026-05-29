@@ -56,6 +56,7 @@ export interface Unit {
   unitNumber: string;
   floor: number | null;
   type: string;
+  carpetAreaSqft?: string | number | null;
   occupancyStatus: 'OWNER_OCCUPIED' | 'RENTED' | 'VACANT';
   block?: { id: string; name: string };
   residencies?: UnitResident[];
@@ -89,6 +90,39 @@ export interface Invoice {
   subtotal?: string;
   lineItems?: { id: string; description: string; quantity: string; unitPrice: string; amount: string }[];
   payments?: { id: string; amount: string; status: string; method: string; gatewayProvider: string | null; paidAt: string | null }[];
+}
+
+export interface DashboardSummary {
+  society: { name: string };
+  kpis: {
+    units: number;
+    people: number;
+    openComplaints: number;
+    billedThisMonth: number;
+    collectedThisMonth: number;
+    pendingThisMonth: number;
+    expensesThisMonth: number;
+    netBalance: number;
+    paidUnits: number;
+    billedUnits: number;
+    collectionRate: number;
+    overdueCount: number;
+    overdueAmount: number;
+    voucherCount: number;
+  };
+  perUnit: { method: 'FIXED' | 'PER_SQFT'; fixedAmount?: number; ratePerSqft?: number };
+  series: { label: string; collected: number; pending: number; expenses: number }[];
+  expenseByCategory: { category: string; total: number }[];
+  pendingFlats: {
+    id: string;
+    invoiceNumber: string;
+    unitNumber: string;
+    blockName: string | null;
+    resident: string | null;
+    outstanding: number;
+    status: string;
+    dueDate: string;
+  }[];
 }
 
 export interface Complaint {

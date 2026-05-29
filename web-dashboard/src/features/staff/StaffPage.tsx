@@ -22,9 +22,9 @@ export function StaffPage() {
   return (
     <div>
       <PageHeader title="Staff & Daily Help" subtitle="Domestic staff and gate attendance" />
-      <div className="mb-4 inline-flex rounded-lg border border-slate-200 bg-white p-1">
+      <div className="mb-4 inline-flex rounded-lg border border-line bg-surface p-1">
         {(['staff', 'attendance'] as const).map((t) => (
-          <button key={t} onClick={() => setTab(t)} className={cn('rounded-md px-4 py-1.5 text-sm font-medium capitalize', tab === t ? 'bg-brand-600 text-white' : 'text-slate-600')}>{t}</button>
+          <button key={t} onClick={() => setTab(t)} className={cn('rounded-md px-4 py-1.5 text-sm font-medium capitalize', tab === t ? 'bg-acid text-acid-ink' : 'text-muted hover:text-ink')}>{t}</button>
         ))}
       </div>
       {tab === 'staff' ? <StaffTab /> : <AttendanceTab />}

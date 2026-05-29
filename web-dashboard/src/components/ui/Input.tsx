@@ -9,16 +9,16 @@ import { cn } from '@/lib/cn';
 
 export function Field({ label, error, children }: { label?: string; error?: string; children: ReactNode }) {
   return (
-    <label className="block space-y-1">
-      {label && <span className="text-sm font-medium text-slate-700">{label}</span>}
+    <label className="block space-y-1.5">
+      {label && <span className="text-[12.5px] font-medium text-muted">{label}</span>}
       {children}
-      {error && <span className="block text-xs text-red-600">{error}</span>}
+      {error && <span className="block text-xs text-danger">{error}</span>}
     </label>
   );
 }
 
 const base =
-  'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100';
+  'w-full rounded-[10px] border border-line2 bg-surface2 px-3 py-2.5 text-sm text-ink outline-none placeholder:text-faint focus:border-green focus:ring-1 focus:ring-green/40';
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
   ({ className, ...props }, ref) => <input ref={ref} className={cn(base, className)} {...props} />,

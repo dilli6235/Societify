@@ -21,7 +21,7 @@ export function Table<T>({ columns, rows, rowKey, loading, empty = 'No records',
     <div className="card overflow-hidden">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+          <tr className="border-b border-line text-left text-[11px] uppercase tracking-[0.04em] text-faint">
             {columns.map((c) => (
               <th key={c.header} className="px-4 py-3 font-medium">
                 {c.header}
@@ -40,7 +40,7 @@ export function Table<T>({ columns, rows, rowKey, loading, empty = 'No records',
             </tr>
           ) : rows.length === 0 ? (
             <tr>
-              <td colSpan={columns.length} className="px-4 py-10 text-center text-slate-400">
+              <td colSpan={columns.length} className="px-4 py-10 text-center text-faint">
                 {empty}
               </td>
             </tr>
@@ -50,8 +50,8 @@ export function Table<T>({ columns, rows, rowKey, loading, empty = 'No records',
                 key={rowKey(row)}
                 onClick={() => onRowClick?.(row)}
                 className={
-                  'border-b border-slate-100 last:border-0 ' +
-                  (onRowClick ? 'cursor-pointer hover:bg-slate-50' : '')
+                  'border-b border-line last:border-0 ' +
+                  (onRowClick ? 'cursor-pointer hover:bg-surface2' : '')
                 }
               >
                 {columns.map((c) => (

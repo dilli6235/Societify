@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { useNavigate } from 'react-router-dom';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/Button';
@@ -7,6 +8,7 @@ import { Table, type Column } from '@/components/ui/Table';
 import { Modal } from '@/components/ui/Modal';
 import { Field, Input, Select } from '@/components/ui/Input';
 import { Badge, statusTone } from '@/components/ui/Badge';
+import { PillButton } from '@/components/ui/PillButton';
 import { cn } from '@/lib/cn';
 import { useList, useApiMutation } from '@/lib/hooks';
 import { post, patch, del } from '@/lib/apiClient';
@@ -20,14 +22,14 @@ export function PropertiesPage() {
   return (
     <div>
       <PageHeader title="Properties" subtitle="Blocks, units, owners & tenants" />
-      <div className="mb-4 inline-flex rounded-lg border border-slate-200 bg-white p-1">
+      <div className="mb-4 inline-flex rounded-lg border border-line bg-surface p-1">
         {(['units', 'blocks', 'residents'] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={cn(
               'rounded-md px-4 py-1.5 text-sm font-medium capitalize',
-              tab === t ? 'bg-brand-600 text-white' : 'text-slate-600',
+              tab === t ? 'bg-acid text-acid-ink' : 'text-muted hover:text-ink',
             )}
           >
             {t === 'residents' ? 'Owners & Tenants' : t}
@@ -122,6 +124,7 @@ function BlockForm({ existing, onClose }: { existing?: Block; onClose: () => voi
 function UnitsTab() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Unit | null>(null);
+  const navigate = useNavigate();
   const units = useList<Unit>(['units'], '/properties/units');
   const remove = useApiMutation((id: string) => del(`/properties/units/${id}`), {
     invalidate: [['units']],
@@ -156,13 +159,14 @@ function UnitsTab() {
     {
       header: '',
       cell: (u) => (
-        <div className="flex gap-1">
-          <button onClick={() => setEditing(u)} className="text-slate-400 hover:text-brand-600" title="Edit unit">
+        <div className="flex items-center gap-2">
+          <PillButton variant="plain" onClick={() => navigate(`/flats/${u.id}`)}>View</PillButton>
+          <button onClick={() => setEditing(u)} className="text-faint hover:text-green" title="Edit unit">
             <Pencil className="h-4 w-4" />
           </button>
           <button
             onClick={() => { if (confirm(`Delete unit "${u.unitNumber}"?`)) remove.mutate(u.id); }}
-            className="text-slate-400 hover:text-red-500"
+            className="text-faint hover:text-danger"
             title="Delete unit"
           >
             <Trash2 className="h-4 w-4" />

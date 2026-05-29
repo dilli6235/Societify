@@ -44,14 +44,14 @@ export function ToastContainer() {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 40 }}
             onClick={() => dismiss(t.id)}
-            className="flex cursor-pointer items-center gap-2 rounded-lg bg-white px-4 py-3 text-sm shadow-lg ring-1 ring-slate-200"
+            className="flex cursor-pointer items-center gap-2 rounded-xl bg-surface2 px-4 py-3 text-sm shadow-xl ring-1 ring-line2"
           >
             {t.kind === 'success' ? (
-              <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+              <CheckCircle2 className="h-5 w-5 text-green" />
             ) : (
-              <XCircle className="h-5 w-5 text-red-500" />
+              <XCircle className="h-5 w-5 text-danger" />
             )}
-            <span className="text-slate-700">{t.message}</span>
+            <span className="text-ink">{t.message}</span>
           </motion.div>
         ))}
       </AnimatePresence>

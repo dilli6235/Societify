@@ -41,7 +41,14 @@ const canRecordPayments = requireRole('SOCIETY_ADMIN', 'COMMITTEE_MEMBER', 'FACI
 // ── Invoices ────────────────────────────────────────────────────────────
 // Resident self-view of their own dues — any authenticated user. Before /:id.
 router.get('/invoices/mine', asyncHandler(invoiceController.listMine));
+// Bulk operations (specific paths before /:id).
+router.post('/invoices/generate', canManageFinance, asyncHandler(invoiceController.generate));
+router.post('/invoices/remind', canManageFinance, asyncHandler(invoiceController.remind));
 router.get('/invoices', canManageFinance, validate(listInvoicesSchema), asyncHandler(invoiceController.list));
+// PDF documents — bill/receipt accessible to managers OR the unit's own
+// resident (ownership enforced in the controller). Defined before /:id.
+router.get('/invoices/:id/pdf', asyncHandler(invoiceController.billPdf));
+router.get('/invoices/:id/receipt', asyncHandler(invoiceController.receiptPdf));
 router.get('/invoices/:id', canManageFinance, validate(invoiceIdSchema), asyncHandler(invoiceController.getById));
 router.post('/invoices', canManageFinance, validate(createInvoiceSchema), asyncHandler(invoiceController.create));
 router.patch('/invoices/:id', canManageFinance, validate(updateInvoiceSchema), asyncHandler(invoiceController.update));
@@ -60,6 +67,7 @@ router.post('/payments/verify', validate(verifyPaymentSchema), asyncHandler(paym
 // ── Expenses ──────────────────────────────────────────────────────────────
 router.get('/expenses', canManageFinance, validate(listExpensesSchema), asyncHandler(expenseController.list));
 router.get('/expenses/summary', canManageFinance, validate(listExpensesSchema), asyncHandler(expenseController.summary));
+router.get('/expenses/:id/voucher', canManageFinance, asyncHandler(expenseController.voucherPdf));
 router.get('/expenses/:id', canManageFinance, validate(expenseIdSchema), asyncHandler(expenseController.getById));
 router.post('/expenses', canManageFinance, validate(createExpenseSchema), asyncHandler(expenseController.create));
 router.patch('/expenses/:id', canManageFinance, validate(updateExpenseSchema), asyncHandler(expenseController.update));

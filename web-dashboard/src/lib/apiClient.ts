@@ -91,3 +91,20 @@ export async function del<T>(url: string): Promise<T> {
   const res = await http.delete<ApiSuccess<T>>(url);
   return res.data.data;
 }
+
+/**
+ * Download a binary response (e.g. a PDF) through the authenticated client and
+ * save it with the given filename. The Bearer token is attached by the request
+ * interceptor, so this works for routes that a plain `window.open` couldn't.
+ */
+export async function downloadFile(url: string, filename: string): Promise<void> {
+  const res = await http.get(url, { responseType: 'blob' });
+  const blobUrl = URL.createObjectURL(res.data as Blob);
+  const a = document.createElement('a');
+  a.href = blobUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(blobUrl);
+}

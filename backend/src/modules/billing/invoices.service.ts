@@ -1,7 +1,7 @@
 import type { InvoiceStatus, Prisma } from '@prisma/client';
 import type { TenantClient } from '@/core/tenant/tenantPrisma';
 import { withSociety } from '@/core/tenant/rls';
-import { BadRequestError, ConflictError, NotFoundError } from '@/core/errors/AppError';
+import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '@/core/errors/AppError';
 import { buildMeta, resolvePagination } from '@/utils/pagination';
 import { enqueueNotification } from '@/jobs/notificationQueue';
 
@@ -247,6 +247,163 @@ class InvoiceService {
         dueDate: invoice.dueDate.toISOString().slice(0, 10),
       },
     });
+  }
+
+  /**
+   * Generate the current month's maintenance invoice for every occupied unit,
+   * using the society's billing config (fixed amount or rate × carpet area).
+   * Idempotent: a unit already invoiced for this period is skipped, so the
+   * button is safe to press twice.
+   */
+  async generateForCurrentMonth(societyId: string) {
+    const now = new Date();
+    const periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const periodEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59));
+
+    const society = await withSociety(societyId, (tx) =>
+      tx.society.findUnique({
+        where: { id: societyId },
+        select: {
+          maintenanceMethod: true,
+          maintenanceFixedAmount: true,
+          maintenanceRatePerSqft: true,
+          dueDay: true,
+        },
+      }),
+    );
+    if (!society) throw new NotFoundError('Society not found');
+
+    const dueDay = Math.min(Math.max(society.dueDay ?? 10, 1), 28);
+    const dueDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), dueDay, 23, 59, 59));
+
+    const units = await withSociety(societyId, (tx) =>
+      tx.unit.findMany({
+        where: { occupancyStatus: { not: 'VACANT' } },
+        select: { id: true, carpetAreaSqft: true },
+      }),
+    );
+
+    let created = 0;
+    let skipped = 0;
+    for (const unit of units) {
+      const existing = await withSociety(societyId, (tx) =>
+        tx.maintenanceInvoice.findFirst({
+          where: { unitId: unit.id, billingPeriodStart: periodStart },
+          select: { id: true },
+        }),
+      );
+      if (existing) {
+        skipped++;
+        continue;
+      }
+
+      const amount =
+        society.maintenanceMethod === 'PER_SQFT'
+          ? Math.round(Number(society.maintenanceRatePerSqft ?? 0) * Number(unit.carpetAreaSqft ?? 0))
+          : Number(society.maintenanceFixedAmount ?? 0);
+      if (amount <= 0) {
+        skipped++;
+        continue;
+      }
+
+      await this.create(societyId, {
+        unitId: unit.id,
+        billingPeriodStart: periodStart,
+        billingPeriodEnd: periodEnd,
+        dueDate,
+        taxAmount: 0,
+        issueNow: true,
+        lineItems: [{ description: 'Monthly maintenance', quantity: 1, unitPrice: amount }],
+      });
+      created++;
+    }
+
+    return { created, skipped };
+  }
+
+  /** Send a reminder notification to the primary resident of each unpaid unit. */
+  async remindUnpaid(societyId: string) {
+    const unpaid = await withSociety(societyId, (tx) =>
+      tx.maintenanceInvoice.findMany({
+        where: { status: { in: ['ISSUED', 'PARTIALLY_PAID', 'OVERDUE'] } },
+        select: { invoiceNumber: true, totalAmount: true, amountPaid: true, dueDate: true, unitId: true },
+      }),
+    );
+
+    let reminded = 0;
+    for (const inv of unpaid) {
+      const primary = await withSociety(societyId, (tx) =>
+        tx.residency.findFirst({
+          where: { unitId: inv.unitId, isPrimary: true, movedOutAt: null },
+          select: { userId: true },
+        }),
+      );
+      if (!primary) continue;
+      await enqueueNotification({
+        societyId,
+        event: 'INVOICE_ISSUED',
+        recipientUserIds: [primary.userId],
+        data: {
+          invoiceNumber: inv.invoiceNumber,
+          amount: Number(inv.totalAmount) - Number(inv.amountPaid),
+          dueDate: inv.dueDate.toISOString().slice(0, 10),
+        },
+      });
+      reminded++;
+    }
+
+    return { reminded };
+  }
+
+  /** Society identity fields used to brand generated PDFs. */
+  async societyIdentity(db: TenantClient, societyId: string) {
+    const s = await db.society.findUnique({
+      where: { id: societyId },
+      select: {
+        name: true,
+        addressLine1: true,
+        addressLine2: true,
+        city: true,
+        state: true,
+        postalCode: true,
+        gstin: true,
+      },
+    });
+    if (!s) throw new NotFoundError('Society not found');
+    return s;
+  }
+
+  /** Full invoice (line items, unit + primary resident, successful payments) for a document. */
+  async getForPdf(db: TenantClient, id: string) {
+    const inv = await db.maintenanceInvoice.findFirst({
+      where: { id },
+      include: {
+        lineItems: true,
+        unit: {
+          select: {
+            unitNumber: true,
+            residencies: {
+              where: { isPrimary: true, movedOutAt: null },
+              take: 1,
+              select: { user: { select: { fullName: true } } },
+            },
+          },
+        },
+        payments: {
+          where: { status: 'SUCCESS' },
+          orderBy: { paidAt: 'desc' },
+          select: { amount: true, method: true, paidAt: true, gatewayPaymentId: true },
+        },
+      },
+    });
+    if (!inv) throw new NotFoundError('Invoice not found');
+    return inv;
+  }
+
+  /** Guard: a non-manager may only access documents for a unit they reside in. */
+  async assertOwnInvoice(db: TenantClient, userId: string, unitId: string): Promise<void> {
+    const r = await db.residency.findFirst({ where: { userId, unitId, movedOutAt: null }, select: { id: true } });
+    if (!r) throw new ForbiddenError('You can only access documents for your own unit');
   }
 
   /** Cancel an invoice that has not been (partially) paid. */

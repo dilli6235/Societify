@@ -5,6 +5,7 @@ import { LoginPage } from '@/features/auth/LoginPage';
 import { AcceptInvitePage } from '@/features/auth/AcceptInvitePage';
 import { DashboardPage } from '@/features/dashboard/DashboardPage';
 import { PropertiesPage } from '@/features/properties/PropertiesPage';
+import { FlatDetailPage } from '@/features/properties/FlatDetailPage';
 import { UsersPage } from '@/features/users/UsersPage';
 import { BillingPage } from '@/features/billing/BillingPage';
 import { GatePage } from '@/features/gate/GatePage';
@@ -16,6 +17,7 @@ import { VehiclesPage } from '@/features/vehicles/VehiclesPage';
 import { StaffPage } from '@/features/staff/StaffPage';
 import { DocumentsPage } from '@/features/documents/DocumentsPage';
 import { SosPage } from '@/features/sos/SosPage';
+import { SettingsPage } from '@/features/settings/SettingsPage';
 import { PlatformLayout } from '@/features/platform/PlatformLayout';
 import { PlatformOverviewPage } from '@/features/platform/OverviewPage';
 import { PlatformSocietiesPage } from '@/features/platform/SocietiesPage';
@@ -53,6 +55,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <DashboardPage /> },
       { path: 'properties', element: <PropertiesPage /> },
+      { path: 'flats/:id', element: <FlatDetailPage /> },
       { path: 'users', element: <UsersPage /> },
       { path: 'billing', element: <BillingPage /> },
       { path: 'gate', element: <GatePage /> },
@@ -64,6 +67,7 @@ export const router = createBrowserRouter([
       { path: 'polls', element: <PollsPage /> },
       { path: 'documents', element: <DocumentsPage /> },
       { path: 'sos', element: <SosPage /> },
+      { path: 'settings', element: <SettingsPage /> },
     ],
   },
   { path: '*', element: <Navigate to="/" replace /> },

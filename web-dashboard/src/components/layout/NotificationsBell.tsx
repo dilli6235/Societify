@@ -17,11 +17,11 @@ export function NotificationsBell() {
     <div className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="relative rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+        className="relative rounded-lg p-2 text-muted hover:bg-surface2 hover:text-ink"
       >
         <Bell className="h-5 w-5" />
         {unread > 0 && (
-          <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">
+          <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-semibold text-[#2a0a08]">
             {unread > 9 ? '9+' : unread}
           </span>
         )}
@@ -37,29 +37,29 @@ export function NotificationsBell() {
               exit={{ opacity: 0, y: -8 }}
               className="card absolute right-0 z-20 mt-2 w-80 overflow-hidden"
             >
-              <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2">
-                <span className="text-sm font-semibold text-slate-700">Notifications</span>
+              <div className="flex items-center justify-between border-b border-line px-4 py-2.5">
+                <span className="text-sm font-semibold text-ink">Notifications</span>
                 {unread > 0 && (
-                  <button onClick={() => markAll.mutate()} className="text-xs text-brand-600 hover:underline">
+                  <button onClick={() => markAll.mutate()} className="text-xs text-green hover:underline">
                     Mark all read
                   </button>
                 )}
               </div>
               <div className="max-h-96 overflow-y-auto">
                 {items.length === 0 ? (
-                  <p className="px-4 py-8 text-center text-sm text-slate-400">You're all caught up</p>
+                  <p className="px-4 py-8 text-center text-sm text-faint">You're all caught up</p>
                 ) : (
                   items.map((n) => (
                     <button
                       key={n.id}
                       onClick={() => !n.readAt && markOne.mutate(n.id)}
                       className={cn(
-                        'block w-full border-b border-slate-100 px-4 py-3 text-left last:border-0 hover:bg-slate-50',
-                        !n.readAt && 'bg-brand-50/40',
+                        'block w-full border-b border-line px-4 py-3 text-left last:border-0 hover:bg-surface2',
+                        !n.readAt && 'bg-green-dim/15',
                       )}
                     >
-                      <p className="text-sm font-medium text-slate-800">{n.title}</p>
-                      <p className="mt-0.5 text-xs text-slate-500">{n.body}</p>
+                      <p className="text-sm font-medium text-ink">{n.title}</p>
+                      <p className="mt-0.5 text-xs text-muted">{n.body}</p>
                     </button>
                   ))
                 )}

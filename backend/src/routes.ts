@@ -14,6 +14,7 @@ import { vehicleRoutes } from '@/modules/vehicles/vehicles.routes';
 import { staffRoutes } from '@/modules/staff/staff.routes';
 import { documentRoutes } from '@/modules/documents/documents.routes';
 import { sosRoutes } from '@/modules/sos/sos.routes';
+import { dashboardRoutes } from '@/modules/dashboard/dashboard.routes';
 
 /**
  * API router. New modules mount here, e.g.:
@@ -27,6 +28,7 @@ apiRouter.get('/health', (_req, res) => {
 });
 
 apiRouter.use('/auth', authRoutes);
+apiRouter.use('/dashboard', dashboardRoutes);
 apiRouter.use('/users', userRoutes);
 apiRouter.use('/properties', propertyRoutes);
 apiRouter.use('/billing', billingRoutes);

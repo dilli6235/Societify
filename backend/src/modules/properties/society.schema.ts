@@ -18,5 +18,14 @@ export const updateSocietySchema = z.object({
     timezone: z.string().min(1).optional(),
     currency: z.string().length(3).optional(),
     logoUrl: z.string().url().nullable().optional(),
+    gstin: z.string().max(20).nullable().optional(),
+
+    // Maintenance billing configuration.
+    maintenanceMethod: z.enum(['FIXED', 'PER_SQFT']).optional(),
+    maintenanceFixedAmount: z.coerce.number().min(0).nullable().optional(),
+    maintenanceRatePerSqft: z.coerce.number().min(0).nullable().optional(),
+    dueDay: z.coerce.number().int().min(1).max(28).optional(),
+    gracePeriodDays: z.coerce.number().int().min(0).max(90).optional(),
+    lateFee: z.coerce.number().min(0).optional(),
   }),
 });

@@ -121,6 +121,11 @@ enum ExpenseCategory {
   OTHER
 }
 
+enum MaintenanceMethod {
+  FIXED    // flat amount per unit
+  PER_SQFT // rate × carpet area
+}
+
 enum BookingStatus {
   REQUESTED
   CONFIRMED
@@ -223,6 +228,16 @@ model Society {
   timezone           String             @default("Asia/Kolkata")
   currency           String             @default("INR")
   logoUrl            String?
+  gstin              String?
+
+  // Maintenance billing configuration — drives bulk invoice generation and
+  // the per-unit charge shown on dashboards / PDFs.
+  maintenanceMethod      MaintenanceMethod @default(FIXED)
+  maintenanceFixedAmount Decimal?          @db.Decimal(12, 2)
+  maintenanceRatePerSqft Decimal?          @db.Decimal(10, 2)
+  dueDay                 Int               @default(10)
+  gracePeriodDays        Int               @default(5)
+  lateFee                Decimal           @db.Decimal(12, 2) @default(0)
 
   planId             String?
   plan               Plan?              @relation(fields: [planId], references: [id])

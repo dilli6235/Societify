@@ -1,14 +1,20 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useQuery } from '@tanstack/react-query';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { Plus, Pencil, Trash2, Download } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Table, type Column } from '@/components/ui/Table';
 import { Modal } from '@/components/ui/Modal';
 import { Field, Input, Select, Textarea } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
+import { StatCard } from '@/components/ui/StatCard';
+import { Panel } from '@/components/ui/Panel';
+import { short, ChartTooltip, ChartLegend, CHART_COLORS } from '@/components/ui/charts';
 import { useList, useApiMutation } from '@/lib/hooks';
-import { getOne, post, patch, del } from '@/lib/apiClient';
+import { getOne, post, patch, del, downloadFile } from '@/lib/apiClient';
+import { toast } from '@/components/ui/toast';
+import type { DashboardSummary } from '@/lib/types';
 
 interface Expense {
   id: string;
@@ -42,6 +48,11 @@ const CATEGORY_LABEL: Record<string, string> = {
 
 const money = (v: string | number) => `₹${Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
 
+const IE = [
+  { key: 'income', label: 'Income', color: '#3fcf8e' },
+  { key: 'expense', label: 'Expense', color: '#f0746e' },
+] as const;
+
 export function ExpensesTab() {
   const [filter, setFilter] = useState<string>('');
   const [open, setOpen] = useState(false);
@@ -50,27 +61,40 @@ export function ExpensesTab() {
   const params = filter ? { category: filter, pageSize: 200 } : { pageSize: 200 };
   const expenses = useList<Expense>(['expenses', filter], '/billing/expenses', params);
   const summary = useQuery({ queryKey: ['expenses-summary'], queryFn: () => getOne<Summary>('/billing/expenses/summary') });
+  const dash = useQuery({ queryKey: ['dashboard', 'summary'], queryFn: () => getOne<DashboardSummary>('/dashboard/summary') });
   const remove = useApiMutation((id: string) => del(`/billing/expenses/${id}`), {
-    invalidate: [['expenses'], ['expenses-summary']],
+    invalidate: [['expenses'], ['expenses-summary'], ['dashboard']],
     successMessage: 'Expense deleted',
   });
+
+  const byCategory = summary.data?.byCategory ?? [];
+  const largest = byCategory[0];
+  const k = dash.data?.kpis;
+  const ieData = (dash.data?.series ?? []).map((s) => ({ label: s.label, income: s.collected, expense: s.expenses }));
 
   const columns: Column<Expense>[] = [
     { header: 'Date', cell: (e) => e.expenseDate.slice(0, 10) },
     { header: 'Category', cell: (e) => <Badge tone="blue">{e.category.replace(/_/g, ' ')}</Badge> },
-    { header: 'Title', cell: (e) => <span className="font-medium text-slate-800">{e.title}</span> },
+    { header: 'Title', cell: (e) => <span className="font-medium text-ink">{e.title}</span> },
     { header: 'Vendor', cell: (e) => e.vendorName ?? '—' },
     { header: 'Amount', cell: (e) => <span className="font-semibold">{money(e.amount)}</span> },
     {
       header: '',
       cell: (e) => (
         <div className="flex gap-1">
-          <button onClick={() => setEditing(e)} className="text-slate-400 hover:text-brand-600" title="Edit expense">
+          <button
+            onClick={() => downloadFile(`/billing/expenses/${e.id}/voucher`, `voucher-${e.title}.pdf`).catch(() => toast.error('Could not download voucher'))}
+            className="text-faint hover:text-acid"
+            title="Download voucher PDF"
+          >
+            <Download className="h-4 w-4" />
+          </button>
+          <button onClick={() => setEditing(e)} className="text-faint hover:text-green" title="Edit expense">
             <Pencil className="h-4 w-4" />
           </button>
           <button
             onClick={() => { if (confirm(`Delete expense "${e.title}"?`)) remove.mutate(e.id); }}
-            className="text-slate-400 hover:text-red-500"
+            className="text-faint hover:text-danger"
             title="Delete expense"
           >
             <Trash2 className="h-4 w-4" />
@@ -82,22 +106,75 @@ export function ExpensesTab() {
 
   return (
     <div>
-      {/* Summary cards */}
-      {summary.data && (
-        <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-          <div className="card p-4">
-            <p className="text-xs uppercase text-slate-500">Total spend</p>
-            <p className="text-xl font-semibold text-slate-900">{money(summary.data.grandTotal)}</p>
-          </div>
-          {summary.data.byCategory.slice(0, 3).map((c) => (
-            <div key={c.category} className="card p-4">
-              <p className="text-xs uppercase text-slate-500">{CATEGORY_LABEL[c.category] ?? c.category}</p>
-              <p className="text-xl font-semibold text-slate-900">{money(c.total)}</p>
-              <p className="text-xs text-slate-400">{c.count} entr{c.count === 1 ? 'y' : 'ies'}</p>
-            </div>
-          ))}
+      {/* KPI cards */}
+      {k && (
+        <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <StatCard label="This month spend" value={short(k.expensesThisMonth)} foot={`${k.voucherCount} vouchers`} />
+          <StatCard
+            label="Largest head"
+            value={<span className="text-[17px]">{largest ? CATEGORY_LABEL[largest.category] ?? largest.category : '—'}</span>}
+            foot={largest ? money(largest.total) : '—'}
+          />
+          <StatCard label="Income (collected)" value={short(k.collectedThisMonth)} foot="maintenance" />
+          <StatCard
+            label="Net balance"
+            value={`${k.netBalance >= 0 ? '+' : '−'}${short(Math.abs(k.netBalance))}`}
+            trend={k.netBalance >= 0 ? 'up' : 'down'}
+            foot="income − expense"
+          />
         </div>
       )}
+
+      {/* Charts */}
+      <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Panel title="By category" subtitle="Share of spend">
+          {byCategory.length === 0 ? (
+            <p className="py-10 text-center text-sm text-faint">No expenses yet</p>
+          ) : (
+            <div className="flex items-center gap-4">
+              <div className="h-[180px] w-[180px] shrink-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={byCategory} dataKey="total" nameKey="category" innerRadius={48} outerRadius={80} paddingAngle={2} stroke="none">
+                      {byCategory.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+                    </Pie>
+                    <Tooltip content={<ChartTooltip />} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="flex-1 space-y-1.5">
+                {byCategory.map((c, i) => (
+                  <div key={c.category} className="flex items-center justify-between text-xs">
+                    <span className="flex items-center gap-2 text-muted">
+                      <i className="inline-block h-2 w-2 rounded-full" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
+                      {CATEGORY_LABEL[c.category] ?? c.category}
+                    </span>
+                    <span className="text-ink">{short(c.total)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </Panel>
+
+        <Panel
+          title="Income vs expense"
+          subtitle="Maintenance collected against spend"
+          aside={<ChartLegend items={IE.map((s) => ({ label: s.label, color: s.color }))} />}
+        >
+          <div className="h-[180px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={ieData} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+                <XAxis dataKey="label" tick={{ fill: '#8ba096', fontSize: 12 }} axisLine={false} tickLine={false} />
+                <YAxis tickFormatter={(v) => `₹${v / 1000}k`} tick={{ fill: '#5f7268', fontSize: 11 }} axisLine={false} tickLine={false} width={52} />
+                <Tooltip cursor={{ fill: 'rgba(255,255,255,0.04)' }} content={<ChartTooltip />} />
+                {IE.map((s) => <Bar key={s.key} dataKey={s.key} name={s.label} fill={s.color} radius={[4, 4, 0, 0]} maxBarSize={16} />)}
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Panel>
+      </div>
 
       {/* Filter + add */}
       <div className="mb-3 flex items-center justify-between gap-2">
@@ -105,7 +182,7 @@ export function ExpensesTab() {
           <option value="">All categories</option>
           {CATEGORIES.map((c) => <option key={c} value={c}>{CATEGORY_LABEL[c] ?? c}</option>)}
         </Select>
-        <Button size="sm" onClick={() => setOpen(true)}><Plus className="h-4 w-4" /> Add expense</Button>
+        <Button size="sm" onClick={() => setOpen(true)}><Plus className="h-4 w-4" /> New expense voucher</Button>
       </div>
 
       <Table
@@ -152,14 +229,14 @@ function ExpenseForm({ existing, onClose }: { existing?: Expense; onClose: () =>
       const body = { ...v, amount: Number(v.amount) };
       return isEdit ? patch(`/billing/expenses/${existing!.id}`, body) : post('/billing/expenses', body);
     },
-    { invalidate: [['expenses'], ['expenses-summary']], successMessage: isEdit ? 'Expense updated' : 'Expense recorded' },
+    { invalidate: [['expenses'], ['expenses-summary'], ['dashboard']], successMessage: isEdit ? 'Expense updated' : 'Voucher created' },
   );
 
   return (
     <Modal
       open
       onClose={onClose}
-      title={isEdit ? `Edit — ${existing?.title}` : 'Record an expense'}
+      title={isEdit ? `Edit — ${existing?.title}` : 'New expense voucher'}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Cancel</Button>

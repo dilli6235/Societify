@@ -20,7 +20,7 @@ export function Modal({ open, onClose, title, children, footer }: ModalProps) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
         >
-          <div className="absolute inset-0 bg-slate-900/40" onClick={onClose} />
+          <div className="absolute inset-0 bg-black/60" onClick={onClose} />
           <motion.div
             className="card relative z-10 w-full max-w-lg overflow-hidden"
             initial={{ scale: 0.96, y: 8 }}
@@ -28,14 +28,14 @@ export function Modal({ open, onClose, title, children, footer }: ModalProps) {
             exit={{ scale: 0.96, y: 8 }}
             transition={{ type: 'spring', stiffness: 320, damping: 28 }}
           >
-            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
-              <h3 className="font-semibold text-slate-800">{title}</h3>
-              <button onClick={onClose} className="rounded-md p-1 text-slate-400 hover:bg-slate-100">
+            <div className="flex items-center justify-between border-b border-line px-5 py-4">
+              <h3 className="font-display text-lg font-semibold text-ink">{title}</h3>
+              <button onClick={onClose} className="rounded-md p-1 text-faint hover:bg-surface2 hover:text-ink">
                 <X className="h-5 w-5" />
               </button>
             </div>
             <div className="max-h-[70vh] overflow-y-auto px-5 py-4">{children}</div>
-            {footer && <div className="flex justify-end gap-2 border-t border-slate-200 px-5 py-3">{footer}</div>}
+            {footer && <div className="flex justify-end gap-2 border-t border-line px-5 py-3">{footer}</div>}
           </motion.div>
         </motion.div>
       )}
