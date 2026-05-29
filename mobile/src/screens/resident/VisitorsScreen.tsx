@@ -97,6 +97,6 @@ const styles = StyleSheet.create({
   sheet: { backgroundColor: colors.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: spacing.xl },
   sheetTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: spacing.lg },
   types: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: spacing.md },
-  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: '#fff', borderWidth: 1, borderColor: colors.border, color: colors.subtext, fontSize: 13, overflow: 'hidden' },
-  chipActive: { backgroundColor: colors.brand, color: '#fff', borderColor: colors.brand },
+  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: colors.card2, borderWidth: 1, borderColor: colors.border, color: colors.subtext, fontSize: 13, overflow: 'hidden' },
+  chipActive: { backgroundColor: colors.accent, color: colors.accentInk, borderColor: colors.accent },
 });

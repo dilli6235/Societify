@@ -16,7 +16,10 @@ export function GuardTabs() {
       screenOptions={{
         tabBarActiveTintColor: colors.brand,
         tabBarInactiveTintColor: colors.subtext,
+        tabBarStyle: { backgroundColor: colors.card, borderTopColor: colors.border },
         headerStyle: { backgroundColor: colors.card },
+        headerTitleStyle: { color: colors.text },
+        headerTintColor: colors.text,
       }}
     >
       <Tab.Screen name="Gate" component={GateScreen} options={{ tabBarIcon: icon('🛡️') }} />

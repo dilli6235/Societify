@@ -23,8 +23,8 @@ export function Button({
   variant?: 'primary' | 'secondary' | 'danger';
   disabled?: boolean;
 }) {
-  const bg = variant === 'secondary' ? '#fff' : variant === 'danger' ? colors.red : colors.brand;
-  const fg = variant === 'secondary' ? colors.text : '#fff';
+  const bg = variant === 'secondary' ? colors.card : variant === 'danger' ? colors.red : colors.accent;
+  const fg = variant === 'secondary' ? colors.text : variant === 'danger' ? '#fff' : colors.accentInk;
   return (
     <Pressable
       onPress={onPress}
@@ -85,7 +85,7 @@ const styles = StyleSheet.create({
   btnText: { fontSize: 16, fontWeight: '600' },
   label: { fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 6 },
   input: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card2,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.md,

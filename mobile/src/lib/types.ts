@@ -49,3 +49,14 @@ export interface Unit {
   id: string;
   unitNumber: string;
 }
+
+export interface Invoice {
+  id: string;
+  invoiceNumber: string;
+  status: 'DRAFT' | 'ISSUED' | 'PARTIALLY_PAID' | 'PAID' | 'OVERDUE' | 'CANCELLED';
+  totalAmount: string;
+  amountPaid: string;
+  dueDate: string;
+  issueDate: string;
+  unit?: { id: string; unitNumber: string };
+}
