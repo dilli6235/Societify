@@ -154,6 +154,12 @@ enum NoticePriority {
   EMERGENCY
 }
 
+enum NoticeAudience {
+  ALL      // everyone in the society
+  OWNERS   // residents with an OWNER residency
+  TENANTS  // residents with a TENANT residency
+}
+
 enum VehicleType {
   CAR
   BIKE
@@ -266,6 +272,7 @@ model Society {
   bookings         AmenityBooking[]
   complaints       Complaint[]
   notices          Notice[]
+  noticeReads      NoticeRead[]
   polls            Poll[]
   vehicles         Vehicle[]
   staffMembers     StaffMember[]
@@ -756,6 +763,8 @@ model Notice {
   title       String
   body        String
   priority    NoticePriority @default(INFO)
+  audience    NoticeAudience @default(ALL)
+  category    String?
   attachments String[]
   publishedAt DateTime       @default(now())
   expiresAt   DateTime?
@@ -763,6 +772,7 @@ model Notice {
 
   postedById String
   postedBy   User   @relation(fields: [postedById], references: [id])
+  reads      NoticeRead[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -770,6 +780,22 @@ model Notice {
   @@index([societyId])
   @@index([societyId, publishedAt])
   @@map("notices")
+}
+
+// Per-user read receipt for a notice ("seen by").
+model NoticeRead {
+  id        String   @id @default(uuid())
+  societyId String
+  society   Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  noticeId  String
+  notice    Notice   @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+  userId    String
+  readAt    DateTime @default(now())
+
+  @@unique([noticeId, userId])
+  @@index([societyId])
+  @@index([noticeId])
+  @@map("notice_reads")
 }
 
 model Poll {

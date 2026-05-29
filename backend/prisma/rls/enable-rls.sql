@@ -42,7 +42,7 @@ DECLARE
     'maintenance_invoices', 'invoice_line_items', 'payments', 'expenses',
     'amenities', 'amenity_bookings',
     'complaints', 'complaint_comments',
-    'notices', 'polls', 'poll_options', 'poll_votes',
+    'notices', 'notice_reads', 'polls', 'poll_options', 'poll_votes',
     'vehicles', 'staff_members', 'staff_attendance', 'documents', 'sos_alerts',
     'audit_logs'
   ];

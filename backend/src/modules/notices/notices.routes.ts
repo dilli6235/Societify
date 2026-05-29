@@ -19,6 +19,10 @@ router.use(authenticate, withTenant);
 const canPost = requireRole('SOCIETY_ADMIN', 'COMMITTEE_MEMBER');
 
 router.get('/', validate(listNoticesSchema), asyncHandler(noticeController.list));
+// Read receipts — any authenticated user marks their own; managers view who read.
+router.post('/read-all', asyncHandler(noticeController.markAllRead));
+router.post('/:id/read', validate(noticeIdSchema), asyncHandler(noticeController.markRead));
+router.get('/:id/reads', canPost, validate(noticeIdSchema), asyncHandler(noticeController.readers));
 router.get('/:id', validate(noticeIdSchema), asyncHandler(noticeController.getById));
 router.post('/', canPost, validate(createNoticeSchema), asyncHandler(noticeController.create));
 router.patch('/:id', canPost, validate(updateNoticeSchema), asyncHandler(noticeController.update));

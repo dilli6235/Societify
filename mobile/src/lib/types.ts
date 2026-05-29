@@ -20,6 +20,8 @@ export interface Notice {
   title: string;
   body: string;
   priority: string;
+  category: string | null;
+  attachments: string[];
   isPinned: boolean;
   publishedAt: string;
 }

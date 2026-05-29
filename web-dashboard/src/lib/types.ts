@@ -142,9 +142,20 @@ export interface Notice {
   title: string;
   body: string;
   priority: 'INFO' | 'IMPORTANT' | 'EMERGENCY';
+  audience: 'ALL' | 'OWNERS' | 'TENANTS';
+  category: string | null;
+  attachments: string[];
   isPinned: boolean;
   publishedAt: string;
   expiresAt: string | null;
+  readByMe?: boolean;
+  _count?: { reads: number };
+}
+
+export interface NoticeReader {
+  userId: string;
+  fullName: string;
+  readAt: string;
 }
 
 export interface Amenity {
