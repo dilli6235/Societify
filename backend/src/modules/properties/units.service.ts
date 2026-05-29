@@ -44,7 +44,21 @@ class UnitService {
         orderBy: { unitNumber: 'asc' },
         skip: page.skip,
         take: page.take,
-        include: { block: { select: { id: true, name: true } } },
+        include: {
+          block: { select: { id: true, name: true } },
+          // Active residents on each unit, so admins can see contact details
+          // (name / phone / email) per unit at a glance.
+          residencies: {
+            where: { movedOutAt: null },
+            orderBy: { isPrimary: 'desc' },
+            select: {
+              id: true,
+              role: true,
+              isPrimary: true,
+              user: { select: { id: true, fullName: true, email: true, phone: true } },
+            },
+          },
+        },
       }),
       db.unit.count({ where }),
     ]);

@@ -12,6 +12,14 @@ const TEMPLATES: Record<NotificationEvent, (d: Data) => RenderedMessage> = {
     title: 'New maintenance invoice',
     body: `Invoice ${str(d, 'invoiceNumber')} for ${str(d, 'currency', '₹')}${str(d, 'amount')} is due on ${str(d, 'dueDate')}.`,
   }),
+  PAYMENT_RECEIVED: (d) => ({
+    title: 'Payment received',
+    body: `Your payment of ₹${str(d, 'amount')} for invoice ${str(d, 'invoiceNumber')} has been recorded. Thank you!`,
+  }),
+  DUE_REMINDER: (d) => ({
+    title: 'Payment overdue',
+    body: `Invoice ${str(d, 'invoiceNumber')} for ₹${str(d, 'amount')} is overdue (was due ${str(d, 'dueDate')}). Please pay at the earliest.`,
+  }),
   COMPLAINT_ASSIGNED: (d) => ({
     title: 'A ticket was assigned to you',
     body: `Ticket ${str(d, 'ticketNumber')}: "${str(d, 'title')}" is now assigned to you.`,

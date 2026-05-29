@@ -50,40 +50,7 @@ services:
       # Optional: set SMTP_URL / EMAIL_FROM / RAZORPAY_* / FCM_SERVER_KEY in the
       # dashboard to enable real email, payments, and push.
 
-  # Background worker (scheduled jobs + notification delivery).
-  # NOTE: Render background workers are a PAID instance type. Omit this service
-  # for a fully-free deploy — the app works without it (only scheduled jobs and
-  # async notification delivery pause).
-  - type: worker
-    name: societify-worker
-    runtime: docker
-    dockerfilePath: ./Dockerfile
-    dockerCommand: npx tsx src/jobs/worker.ts
-    plan: starter
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: DATABASE_URL
-        fromDatabase:
-          name: societify-db
-          property: connectionString
-      - key: REDIS_URL
-        fromService:
-          type: keyvalue
-          name: societify-redis
-          property: connectionString
-      - key: JWT_ACCESS_SECRET
-        fromService:
-          type: web
-          name: societify-api
-          envVarKey: JWT_ACCESS_SECRET
-      - key: JWT_REFRESH_SECRET
-        fromService:
-          type: web
-          name: societify-api
-          envVarKey: JWT_REFRESH_SECRET
-      - key: COOKIE_SECRET
-        fromService:
-          type: web
-          name: societify-api
-          envVarKey: COOKIE_SECRET
+  # Background worker omitted — Render workers are a paid instance. The app
+  # runs fine without it; only scheduled jobs (monthly invoicing, overdue/
+  # expiry sweeps) and async notification delivery pause. Re-add later for
+  # production.

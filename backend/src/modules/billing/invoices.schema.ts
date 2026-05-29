@@ -15,6 +15,8 @@ export const createInvoiceSchema = z.object({
       dueDate: z.coerce.date(),
       lineItems: z.array(lineItem).min(1, 'At least one line item is required'),
       taxAmount: z.coerce.number().min(0).default(0),
+      // Optional late-payment penalty/fee — included in the total.
+      lateFee: z.coerce.number().min(0).default(0),
       // Issue immediately, or keep as DRAFT for review.
       issueNow: z.boolean().default(false),
     })
@@ -26,6 +28,25 @@ export const createInvoiceSchema = z.object({
 
 export const invoiceIdSchema = z.object({
   params: z.object({ id: z.string().uuid() }),
+});
+
+export const updateInvoiceSchema = z.object({
+  params: z.object({ id: z.string().uuid() }),
+  body: z.object({
+    dueDate: z.coerce.date().optional(),
+    taxAmount: z.coerce.number().min(0).optional(),
+    lateFee: z.coerce.number().min(0).optional(),
+    lineItems: z
+      .array(
+        z.object({
+          description: z.string().min(1).max(200),
+          quantity: z.coerce.number().positive().max(100000).default(1),
+          unitPrice: z.coerce.number().min(0).max(100_000_000),
+        }),
+      )
+      .min(1)
+      .optional(),
+  }),
 });
 
 export const listInvoicesSchema = z.object({

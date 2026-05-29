@@ -13,6 +13,15 @@ class PaymentController {
     res.status(201).json(ok(payment));
   };
 
+  update = async (req: Request, res: Response): Promise<void> => {
+    res.json(ok(await paymentService.updatePayment(req.tenant!.societyId, req.params.id, req.body)));
+  };
+
+  remove = async (req: Request, res: Response): Promise<void> => {
+    await paymentService.deletePayment(req.tenant!.societyId, req.params.id);
+    res.json(ok({ deleted: true }));
+  };
+
   createOrder = async (req: Request, res: Response): Promise<void> => {
     const result = await paymentService.createOnlineOrder(
       req.tenant!.db,

@@ -9,12 +9,14 @@ import { invoiceController } from './invoices.controller';
 import { paymentController } from './payments.controller';
 import { expenseController } from './expenses.controller';
 
-import { createInvoiceSchema, invoiceIdSchema, listInvoicesSchema } from './invoices.schema';
+import { createInvoiceSchema, invoiceIdSchema, listInvoicesSchema, updateInvoiceSchema } from './invoices.schema';
 import {
   recordManualSchema,
   createOrderSchema,
   verifyPaymentSchema,
   listPaymentsSchema,
+  updatePaymentSchema,
+  paymentIdSchema,
 } from './payments.schema';
 import {
   createExpenseSchema,
@@ -31,8 +33,10 @@ router.post('/payments/webhook', asyncHandler(paymentController.webhook));
 // Everything below requires an authenticated, tenant-scoped session.
 router.use(authenticate, withTenant);
 
-// Finance management is restricted to admins + committee (treasurer).
+// Finance management (invoices, expenses) — admins + committee (treasurer).
 const canManageFinance = requireRole('SOCIETY_ADMIN', 'COMMITTEE_MEMBER');
+// Recording/editing payments — also allow facility admins.
+const canRecordPayments = requireRole('SOCIETY_ADMIN', 'COMMITTEE_MEMBER', 'FACILITY_ADMIN');
 
 // ── Invoices ────────────────────────────────────────────────────────────
 // Resident self-view of their own dues — any authenticated user. Before /:id.
@@ -40,12 +44,15 @@ router.get('/invoices/mine', asyncHandler(invoiceController.listMine));
 router.get('/invoices', canManageFinance, validate(listInvoicesSchema), asyncHandler(invoiceController.list));
 router.get('/invoices/:id', canManageFinance, validate(invoiceIdSchema), asyncHandler(invoiceController.getById));
 router.post('/invoices', canManageFinance, validate(createInvoiceSchema), asyncHandler(invoiceController.create));
+router.patch('/invoices/:id', canManageFinance, validate(updateInvoiceSchema), asyncHandler(invoiceController.update));
 router.post('/invoices/:id/issue', canManageFinance, validate(invoiceIdSchema), asyncHandler(invoiceController.issue));
 router.post('/invoices/:id/cancel', canManageFinance, validate(invoiceIdSchema), asyncHandler(invoiceController.cancel));
 
 // ── Payments ──────────────────────────────────────────────────────────────
-router.get('/payments', canManageFinance, validate(listPaymentsSchema), asyncHandler(paymentController.list));
-router.post('/payments/manual', canManageFinance, validate(recordManualSchema), asyncHandler(paymentController.recordManual));
+router.get('/payments', canRecordPayments, validate(listPaymentsSchema), asyncHandler(paymentController.list));
+router.post('/payments/manual', canRecordPayments, validate(recordManualSchema), asyncHandler(paymentController.recordManual));
+router.patch('/payments/:id', canRecordPayments, validate(updatePaymentSchema), asyncHandler(paymentController.update));
+router.delete('/payments/:id', canRecordPayments, validate(paymentIdSchema), asyncHandler(paymentController.remove));
 // Resident self-service: any authenticated tenant user may pay.
 router.post('/payments/order', validate(createOrderSchema), asyncHandler(paymentController.createOrder));
 router.post('/payments/verify', validate(verifyPaymentSchema), asyncHandler(paymentController.verify));

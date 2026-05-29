@@ -2,6 +2,14 @@ import { z } from 'zod';
 
 const residencyRole = z.enum(['OWNER', 'TENANT', 'FAMILY_MEMBER']);
 
+// Rental details (mainly for TENANT residencies).
+const rental = {
+  rentAmount: z.coerce.number().min(0).max(100_000_000).nullable().optional(),
+  depositAmount: z.coerce.number().min(0).max(100_000_000).nullable().optional(),
+  leaseStartDate: z.coerce.date().nullable().optional(),
+  leaseEndDate: z.coerce.date().nullable().optional(),
+};
+
 /**
  * Assign an existing user to a unit. Creating the user account itself
  * (resident invitations) belongs to the users module — this only links a
@@ -14,6 +22,7 @@ export const createResidencySchema = z.object({
     role: residencyRole,
     isPrimary: z.boolean().default(false),
     movedInAt: z.coerce.date().optional(),
+    ...rental,
   }),
 });
 
@@ -25,6 +34,7 @@ export const updateResidencySchema = z.object({
     isPrimary: z.boolean().optional(),
     movedInAt: z.coerce.date().optional(),
     movedOutAt: z.coerce.date().nullable().optional(),
+    ...rental,
   }),
 });
 

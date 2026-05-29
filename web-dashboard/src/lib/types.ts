@@ -44,6 +44,13 @@ export interface Block {
   _count?: { units: number };
 }
 
+export interface UnitResident {
+  id: string;
+  role: 'OWNER' | 'TENANT' | 'FAMILY_MEMBER';
+  isPrimary: boolean;
+  user: { id: string; fullName: string; email: string; phone: string | null };
+}
+
 export interface Unit {
   id: string;
   unitNumber: string;
@@ -51,6 +58,7 @@ export interface Unit {
   type: string;
   occupancyStatus: 'OWNER_OCCUPIED' | 'RENTED' | 'VACANT';
   block?: { id: string; name: string };
+  residencies?: UnitResident[];
 }
 
 export interface UserRow {
@@ -71,8 +79,16 @@ export interface Invoice {
   amountPaid: string;
   dueDate: string;
   issueDate: string;
-  unit?: { id: string; unitNumber: string };
+  unit?: {
+    id: string;
+    unitNumber: string;
+    residencies?: { user: { id: string; fullName: string; email: string; phone: string | null } }[];
+  };
+  taxAmount?: string;
+  lateFee?: string;
+  subtotal?: string;
   lineItems?: { id: string; description: string; quantity: string; unitPrice: string; amount: string }[];
+  payments?: { id: string; amount: string; status: string; method: string; gatewayProvider: string | null; paidAt: string | null }[];
 }
 
 export interface Complaint {

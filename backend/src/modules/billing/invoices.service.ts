@@ -18,6 +18,7 @@ interface CreateInput {
   dueDate: Date;
   lineItems: LineItemInput[];
   taxAmount: number;
+  lateFee?: number;
   issueNow: boolean;
 }
 
@@ -28,10 +29,24 @@ interface ListParams {
   status?: InvoiceStatus;
 }
 
+// Include the unit's primary resident's contact details so the UI can show
+// who the invoice is for (name / phone / email).
+const unitWithResident = {
+  select: {
+    id: true,
+    unitNumber: true,
+    residencies: {
+      where: { isPrimary: true, movedOutAt: null },
+      take: 1,
+      select: { user: { select: { id: true, fullName: true, email: true, phone: true } } },
+    },
+  },
+} as const;
+
 const invoiceInclude = {
   lineItems: true,
-  unit: { select: { id: true, unitNumber: true } },
-  payments: { select: { id: true, amount: true, status: true, method: true, paidAt: true } },
+  unit: unitWithResident,
+  payments: { select: { id: true, amount: true, status: true, method: true, paidAt: true, gatewayProvider: true } },
 } satisfies Prisma.MaintenanceInvoiceInclude;
 
 class InvoiceService {
@@ -48,7 +63,7 @@ class InvoiceService {
         orderBy: { issueDate: 'desc' },
         skip: page.skip,
         take: page.take,
-        include: { unit: { select: { id: true, unitNumber: true } } },
+        include: { unit: unitWithResident },
       }),
       db.maintenanceInvoice.count({ where }),
     ]);
@@ -102,7 +117,8 @@ class InvoiceService {
         (sum, li) => sum + li.quantity * li.unitPrice,
         0,
       );
-      const totalAmount = subtotal + input.taxAmount;
+      const lateFee = input.lateFee ?? 0;
+      const totalAmount = subtotal + input.taxAmount + lateFee;
 
       const { invoiceSeq } = await tx.society.update({
         where: { id: societyId },
@@ -123,6 +139,7 @@ class InvoiceService {
           dueDate: input.dueDate,
           subtotal,
           taxAmount: input.taxAmount,
+          lateFee,
           totalAmount,
           amountPaid: 0,
           lineItems: {
@@ -134,6 +151,59 @@ class InvoiceService {
               amount: li.quantity * li.unitPrice,
             })),
           },
+        },
+        include: invoiceInclude,
+      });
+    });
+  }
+
+  /**
+   * Edit an invoice's due date, tax, or line items. Recomputes subtotal and
+   * total. PAID and CANCELLED invoices can't be edited.
+   */
+  async update(
+    societyId: string,
+    id: string,
+    input: { dueDate?: Date; taxAmount?: number; lateFee?: number; lineItems?: LineItemInput[] },
+  ) {
+    return withSociety(societyId, async (tx) => {
+      const inv = await tx.maintenanceInvoice.findFirst({ where: { id, societyId } });
+      if (!inv) throw new NotFoundError('Invoice not found');
+      if (inv.status === 'PAID' || inv.status === 'CANCELLED') {
+        throw new ConflictError(`Cannot edit a ${inv.status} invoice`);
+      }
+
+      let subtotal = Number(inv.subtotal);
+      if (input.lineItems) {
+        await tx.invoiceLineItem.deleteMany({ where: { invoiceId: id } });
+        subtotal = input.lineItems.reduce((s, li) => s + li.quantity * li.unitPrice, 0);
+        await tx.invoiceLineItem.createMany({
+          data: input.lineItems.map((li) => ({
+            societyId,
+            invoiceId: id,
+            description: li.description,
+            quantity: li.quantity,
+            unitPrice: li.unitPrice,
+            amount: li.quantity * li.unitPrice,
+          })),
+        });
+      }
+      const taxAmount = input.taxAmount ?? Number(inv.taxAmount);
+      const lateFee = input.lateFee ?? Number(inv.lateFee);
+      const totalAmount = subtotal + taxAmount + lateFee;
+
+      // If lowering the total now means the invoice is fully covered, flip to PAID.
+      const status = Number(inv.amountPaid) + 0.001 >= totalAmount ? 'PAID' : inv.status;
+
+      return tx.maintenanceInvoice.update({
+        where: { id },
+        data: {
+          dueDate: input.dueDate ?? undefined,
+          taxAmount,
+          lateFee,
+          subtotal,
+          totalAmount,
+          status,
         },
         include: invoiceInclude,
       });

@@ -10,6 +10,7 @@ import { logger } from '@/config/logger';
 import { env } from '@/config/env';
 import { buildMeta, resolvePagination } from '@/utils/pagination';
 import { getPaymentProvider } from '@/integrations/payments';
+import { enqueueNotification } from '@/jobs/notificationQueue';
 
 type Tx = Prisma.TransactionClient;
 
@@ -44,11 +45,11 @@ class PaymentService {
     societyId: string,
     input: { invoiceId: string; amount: number; method: PaymentMethod; reference?: string; paidAt?: Date },
   ) {
-    return withSociety(societyId, async (tx) => {
+    const { payment, invoiceNumber, unitId } = await withSociety(societyId, async (tx) => {
       const invoice = await this.loadPayableInvoice(tx, societyId, input.invoiceId);
       this.assertNotOverpaying(invoice, input.amount);
 
-      const payment = await tx.payment.create({
+      const created = await tx.payment.create({
         data: {
           societyId,
           invoiceId: input.invoiceId,
@@ -62,8 +63,11 @@ class PaymentService {
       });
 
       await this.applyToInvoice(tx, invoice, input.amount);
-      return payment;
+      return { payment: created, invoiceNumber: invoice.invoiceNumber, unitId: invoice.unitId };
     });
+
+    await this.notifyPaymentReceived(societyId, unitId, invoiceNumber, input.amount);
+    return payment;
   }
 
   /**
@@ -138,12 +142,12 @@ class PaymentService {
     });
     if (!valid) throw new BadRequestError('Payment signature verification failed');
 
-    return withSociety(societyId, async (tx) => {
+    const { result, notify } = await withSociety(societyId, async (tx) => {
       const payment = await tx.payment.findFirst({
         where: { gatewayOrderId: input.razorpayOrderId, societyId },
       });
       if (!payment) throw new NotFoundError('Payment not found');
-      if (payment.status === 'SUCCESS') return payment; // already settled
+      if (payment.status === 'SUCCESS') return { result: payment, notify: null }; // already settled
 
       const updated = await tx.payment.update({
         where: { id: payment.id },
@@ -155,12 +159,17 @@ class PaymentService {
         },
       });
 
+      let notify: { unitId: string; invoiceNumber: string; amount: number } | null = null;
       if (payment.invoiceId) {
         const invoice = await this.loadPayableInvoice(tx, societyId, payment.invoiceId);
         await this.applyToInvoice(tx, invoice, Number(payment.amount));
+        notify = { unitId: invoice.unitId, invoiceNumber: invoice.invoiceNumber, amount: Number(payment.amount) };
       }
-      return updated;
+      return { result: updated, notify };
     });
+
+    if (notify) await this.notifyPaymentReceived(societyId, notify.unitId, notify.invoiceNumber, notify.amount);
+    return result;
   }
 
   /**
@@ -191,7 +200,7 @@ class PaymentService {
 
     if (event.type === 'payment.captured') {
       if (payment.status === 'SUCCESS') return; // idempotent
-      await withSociety(payment.societyId, async (tx) => {
+      const notify = await withSociety(payment.societyId, async (tx) => {
         await tx.payment.update({
           where: { id: payment.id },
           data: {
@@ -203,8 +212,11 @@ class PaymentService {
         if (payment.invoiceId) {
           const invoice = await this.loadPayableInvoice(tx, payment.societyId, payment.invoiceId);
           await this.applyToInvoice(tx, invoice, Number(payment.amount));
+          return { unitId: invoice.unitId, invoiceNumber: invoice.invoiceNumber, amount: Number(payment.amount) };
         }
+        return null;
       });
+      if (notify) await this.notifyPaymentReceived(payment.societyId, notify.unitId, notify.invoiceNumber, notify.amount);
     } else if (event.type === 'payment.failed') {
       await withSociety(payment.societyId, (tx) =>
         tx.payment.update({
@@ -220,11 +232,67 @@ class PaymentService {
   private async loadPayableInvoice(tx: Tx, societyId: string, invoiceId: string) {
     const invoice = await tx.maintenanceInvoice.findFirst({
       where: { id: invoiceId, societyId },
-      select: { id: true, totalAmount: true, amountPaid: true, status: true },
+      select: { id: true, unitId: true, invoiceNumber: true, totalAmount: true, amountPaid: true, status: true },
     });
     if (!invoice) throw new NotFoundError('Invoice not found');
     if (invoice.status === 'CANCELLED') throw new ConflictError('Invoice is cancelled');
     return invoice;
+  }
+
+  /** Notify the unit's primary resident that their payment was recorded. */
+  private async notifyPaymentReceived(societyId: string, unitId: string, invoiceNumber: string, amount: number): Promise<void> {
+    const primary = await withSociety(societyId, (tx) =>
+      tx.residency.findFirst({ where: { unitId, isPrimary: true, movedOutAt: null }, select: { userId: true } }),
+    );
+    if (!primary) return;
+    await enqueueNotification({
+      societyId,
+      event: 'PAYMENT_RECEIVED',
+      recipientUserIds: [primary.userId],
+      data: { invoiceNumber, amount },
+    });
+  }
+
+  /** Recompute an invoice's amountPaid + status from its SUCCESS payments. */
+  private async recomputeInvoice(tx: Tx, invoiceId: string): Promise<void> {
+    const inv = await tx.maintenanceInvoice.findFirst({ where: { id: invoiceId }, select: { totalAmount: true } });
+    if (!inv) return;
+    const agg = await tx.payment.aggregate({ where: { invoiceId, status: 'SUCCESS' }, _sum: { amount: true } });
+    const paid = Number(agg._sum.amount ?? 0);
+    const total = Number(inv.totalAmount);
+    const status = paid <= 0 ? 'ISSUED' : paid + 0.001 >= total ? 'PAID' : 'PARTIALLY_PAID';
+    await tx.maintenanceInvoice.update({ where: { id: invoiceId }, data: { amountPaid: paid, status } });
+  }
+
+  /** Edit a recorded (manual) payment, then recompute the invoice. */
+  async updatePayment(societyId: string, id: string, data: { amount?: number; method?: PaymentMethod; reference?: string }) {
+    return withSociety(societyId, async (tx) => {
+      const payment = await tx.payment.findFirst({ where: { id, societyId } });
+      if (!payment) throw new NotFoundError('Payment not found');
+      if (payment.gatewayProvider !== 'manual') throw new ConflictError('Only manually-recorded payments can be edited');
+
+      const updated = await tx.payment.update({
+        where: { id },
+        data: {
+          amount: data.amount ?? undefined,
+          method: data.method ?? undefined,
+          gatewayPaymentId: data.reference ? `manual:${data.reference}` : payment.gatewayPaymentId,
+        },
+      });
+      if (payment.invoiceId) await this.recomputeInvoice(tx, payment.invoiceId);
+      return updated;
+    });
+  }
+
+  /** Delete a recorded (manual) payment, reversing its effect on the invoice. */
+  async deletePayment(societyId: string, id: string): Promise<void> {
+    await withSociety(societyId, async (tx) => {
+      const payment = await tx.payment.findFirst({ where: { id, societyId } });
+      if (!payment) throw new NotFoundError('Payment not found');
+      if (payment.gatewayProvider !== 'manual') throw new ConflictError('Only manually-recorded payments can be deleted');
+      await tx.payment.delete({ where: { id } });
+      if (payment.invoiceId) await this.recomputeInvoice(tx, payment.invoiceId);
+    });
   }
 
   private assertNotOverpaying(

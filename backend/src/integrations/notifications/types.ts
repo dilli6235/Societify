@@ -4,6 +4,8 @@
  */
 export type NotificationEvent =
   | 'INVOICE_ISSUED'
+  | 'PAYMENT_RECEIVED'
+  | 'DUE_REMINDER'
   | 'COMPLAINT_ASSIGNED'
   | 'COMPLAINT_STATUS_CHANGED'
   | 'GATE_PASS_PENDING'

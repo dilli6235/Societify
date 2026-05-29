@@ -22,6 +22,10 @@ class InvoiceController {
     res.status(201).json(ok(invoice));
   };
 
+  update = async (req: Request, res: Response): Promise<void> => {
+    res.json(ok(await invoiceService.update(req.tenant!.societyId, req.params.id, req.body)));
+  };
+
   issue = async (req: Request, res: Response): Promise<void> => {
     const invoice = await invoiceService.issue(req.tenant!.db, req.params.id);
     res.json(ok(invoice));

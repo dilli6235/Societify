@@ -11,7 +11,14 @@ interface ListParams {
   activeOnly?: boolean;
 }
 
-interface CreateInput {
+interface RentalFields {
+  rentAmount?: number | null;
+  depositAmount?: number | null;
+  leaseStartDate?: Date | null;
+  leaseEndDate?: Date | null;
+}
+
+interface CreateInput extends RentalFields {
   unitId: string;
   userId: string;
   role: ResidencyRole;
@@ -19,7 +26,7 @@ interface CreateInput {
   movedInAt?: Date;
 }
 
-interface UpdateInput {
+interface UpdateInput extends RentalFields {
   role?: ResidencyRole;
   isPrimary?: boolean;
   movedInAt?: Date;
@@ -97,6 +104,10 @@ class ResidencyService {
         role: input.role,
         isPrimary: input.isPrimary,
         movedInAt: input.movedInAt ?? new Date(),
+        rentAmount: input.rentAmount ?? null,
+        depositAmount: input.depositAmount ?? null,
+        leaseStartDate: input.leaseStartDate ?? null,
+        leaseEndDate: input.leaseEndDate ?? null,
       },
     });
 

@@ -29,6 +29,19 @@ export const verifyPaymentSchema = z.object({
   }),
 });
 
+export const updatePaymentSchema = z.object({
+  params: z.object({ id: z.string().uuid() }),
+  body: z.object({
+    amount: z.coerce.number().positive().max(100_000_000).optional(),
+    method: z.enum(['CASH', 'CHEQUE', 'BANK_TRANSFER', 'UPI']).optional(),
+    reference: z.string().max(120).optional(),
+  }),
+});
+
+export const paymentIdSchema = z.object({
+  params: z.object({ id: z.string().uuid() }),
+});
+
 export const listPaymentsSchema = z.object({
   query: z.object({
     page: z.coerce.number().int().positive().optional(),
